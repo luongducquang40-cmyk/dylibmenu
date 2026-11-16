@@ -1,0 +1,9 @@
+Package: com.op.ffiosmenu
+Name: FF iOS Menu
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: Free Fire auto-resolver menu template
+Maintainer: Op
+Author: Op
+Section: Tweaks
+Depends: mobilesubstrate
