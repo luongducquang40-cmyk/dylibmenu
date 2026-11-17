@@ -1,8 +1,8 @@
-Package: com.op.ffiosmenu
-Name: FF iOS Menu
+Package: com.op.aimhub
+Name: AimHub Bypass
 Version: 1.0.0
 Architecture: iphoneos-arm
-Description: Free Fire auto-resolver menu template
+Description: Bypass login screen for AimHub
 Maintainer: Op
 Author: Op
 Section: Tweaks
