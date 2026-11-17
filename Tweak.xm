@@ -1,62 +1,68 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <substrate.h>
-#import "AutoResolver.hpp"
-#import "Menu.h"
 
 // ==========================================
-// LƯU Ý: THAY ĐỔI TÊN CLASS/METHOD TẠI ĐÂY
-// Dùng Il2CppDumper để lấy tên thật của Free Fire
+// PHẦN 1: GHI ĐÈ CÁC HÀM XÁC THỰC KEY
 // ==========================================
-static const char* CLASS_CAMERA = "MainCamera";
-static const char* METHOD_CAMERA = "get_main";
+static BOOL (*orig_checkKey)(id self, SEL _cmd, NSString* key) = nullptr;
 
-static const char* CLASS_PLAYER = "PlayerManager";
-static const char* METHOD_PLAYER = "get_AllPlayers";
-
-// Biến lưu địa chỉ gốc
-static void* (*orig_get_camera)(void*) = nullptr;
-static void* (*orig_get_players)(void*) = nullptr;
-
-// Hook Camera
-static void* hook_get_camera(void* self) {
-    void* ret = orig_get_camera ? orig_get_camera(self) : nullptr;
-    // TODO: Dùng ret này để tính World-to-Screen
-    return ret;
+static BOOL hook_checkKey(id self, SEL _cmd, NSString* key) {
+    NSLog(@"[AimHub Bypass] Đã chặn hàm checkKey với key: %@", key);
+    return YES; // Luôn trả về true (hợp lệ)
 }
 
-// Hook Player List
-static void* hook_get_players(void* self) {
-    void* ret = orig_get_players ? orig_get_players(self) : nullptr;
+static BOOL (*orig_isKeyValid)(id self, SEL _cmd) = nullptr;
+static BOOL hook_isKeyValid(id self, SEL _cmd) {
+    return YES;
+}
+
+// ==========================================
+// PHẦN 2: ẨN MÀN HÌNH LOGIN
+// ==========================================
+static void (*orig_viewDidAppear)(id self, SEL _cmd, BOOL animated) = nullptr;
+
+static void hook_viewDidAppear(id self, SEL _cmd, BOOL animated) {
+    orig_viewDidAppear(self, _cmd, animated);
     
-    FFMenu *menu = [FFMenu shared];
-    if ([menu isEspEnabled] || [menu isAimbotEnabled]) {
-        // TODO: Duyệt danh sách player trong ret, lấy vị trí, vẽ box / kéo camera
+    NSString *className = NSStringFromClass([self class]);
+    
+    // Tự động đóng các màn hình Login/Auth nếu phát hiện
+    if ([className containsString:@"Login"] || 
+        [className containsString:@"Auth"] || 
+        [className containsString:@"Key"]) {
+        
+        NSLog(@"[AimHub Bypass] Đã phát hiện màn hình login: %@. Đang ẩn...", className);
+        UIViewController *vc = (UIViewController *)self;
+        [vc dismissViewControllerAnimated:NO completion:nil];
     }
-    return ret;
 }
 
+// ==========================================
+// PHẦN 3: KHỞI TẠO
+// ==========================================
 __attribute__((constructor))
 static void init_tweak() {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        if (!AutoResolver::init()) {
-            NSLog(@"[FF Menu] IL2CPP init failed");
-            return;
+    NSLog(@"[AimHub Bypass] Đã load tweak vào app!");
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        
+        // Hook các class giả định (thay tên nếu bạn tìm được tên thật)
+        Class authClass = objc_getClass("AuthManager");
+        if (authClass) {
+            MSHookMessageEx(authClass, @selector(checkKey:), (IMP)hook_checkKey, (IMP*)&orig_checkKey);
+            NSLog(@"[AimHub Bypass] Đã hook AuthManager::checkKey");
         }
-
-        // Tự động tìm hàm Camera
-        void* cam = AutoResolver::resolve(CLASS_CAMERA, METHOD_CAMERA, nullptr);
-        if (cam) {
-            MSHookFunction(cam, (void*)hook_get_camera, (void**)&orig_get_camera);
+        
+        Class licenseClass = objc_getClass("LicenseManager");
+        if (licenseClass) {
+            MSHookMessageEx(licenseClass, @selector(isKeyValid), (IMP)hook_isKeyValid, (IMP*)&orig_isKeyValid);
+            NSLog(@"[AimHub Bypass] Đã hook LicenseManager::isKeyValid");
         }
-
-        // Tự động tìm hàm Player
-        void* players = AutoResolver::resolve(CLASS_PLAYER, METHOD_PLAYER, nullptr);
-        if (players) {
-            MSHookFunction(players, (void*)hook_get_players, (void**)&orig_get_players);
+        
+        Class vcClass = objc_getClass("UIViewController");
+        if (vcClass) {
+            MSHookMessageEx(vcClass, @selector(viewDidAppear:), (IMP)hook_viewDidAppear, (IMP*)&orig_viewDidAppear);
         }
-
-        // Bật Menu
-        [[FFMenu shared] show];
     });
 }
